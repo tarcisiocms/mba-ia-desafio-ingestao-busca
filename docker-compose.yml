@@ -1,33 +1,46 @@
 services:
-  postgres:
+  desafio01-db:
     image: pgvector/pgvector:pg17
-    container_name: postgres_rag
+    container_name: desafio01-db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: rag
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-rag}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d rag"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-rag}"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
-  bootstrap_vector_ext:
-    image: pgvector/pgvector:pg17
+  desafio01-app:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GOOGLE_EMBEDDING_MODEL: ${GOOGLE_EMBEDDING_MODEL:-gemini-embedding-001}
+      GOOGLE_LLM_MODEL: ${GOOGLE_LLM_MODEL:-gemini-2.5-flash-lite}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-rag}
+      POSTGRES_HOST: desafio01-db
+      POSTGRES_PORT: 5432
+      PG_VECTOR_COLLECTION_NAME: ${PG_VECTOR_COLLECTION_NAME:-pdf_chunks}
+      PDF_PATH: ${PDF_PATH:-document.pdf}
+      INGEST_BATCH_SIZE: ${INGEST_BATCH_SIZE:-5}
+      INGEST_BATCH_DELAY_SECONDS: ${INGEST_BATCH_DELAY_SECONDS:-1}
+      INGEST_MAX_TOKENS_PER_MINUTE: ${INGEST_MAX_TOKENS_PER_MINUTE:-20000}
+    volumes:
+      - .:/app
     depends_on:
-      postgres:
+      desafio01-db:
         condition: service_healthy
-    entrypoint: ["/bin/sh", "-c"]
-    command: >
-      PGPASSWORD=postgres
-      psql "postgresql://postgres@postgres:5432/rag" -v ON_ERROR_STOP=1
-      -c "CREATE EXTENSION IF NOT EXISTS vector;"
-    restart: "no"
 
 volumes:
   postgres_data:
